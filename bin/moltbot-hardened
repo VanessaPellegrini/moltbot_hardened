@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import socket
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+DEFAULT_STATE_FILE = "/usr/local/var/moltbot-hardened/state/breaker-state.json"
+DEFAULT_NGINX_DIR = "/usr/local/etc/nginx/servers"
+DEFAULT_CONF_PREFIX = "moltbot-control"
+DEFAULT_AUTH_FILE = "/etc/nginx/.htpasswd"
+DEFAULT_CONTROL_PORT = 3000
+DEFAULT_BREAKER_PORT = 8080
+
+VALID_STATES = {"CLOSED", "OPEN", "HALF"}
+VALID_REASONS = {
+    "MANUAL_BLOCK",
+    "MANUAL_OPEN",
+    "RECOVERY",
+    "STATE_INVALID",
+    "STATE_MISSING",
+}
+
+
+def utc_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def load_env_int(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def config_from_env():
+    return {
+        "state_file": os.environ.get("MBH_STATE_FILE", DEFAULT_STATE_FILE),
+        "nginx_dir": os.environ.get("MBH_NGINX_DIR", DEFAULT_NGINX_DIR),
+        "conf_prefix": os.environ.get("MBH_CONF_PREFIX", DEFAULT_CONF_PREFIX),
+        "auth_file": os.environ.get("MBH_AUTH_FILE", DEFAULT_AUTH_FILE),
+        "control_port": load_env_int("MBH_CONTROL_PORT", DEFAULT_CONTROL_PORT),
+        "breaker_port": load_env_int("MBH_BREAKER_PORT", DEFAULT_BREAKER_PORT),
+    }
+
+
+def read_state(path):
+    if not path.exists():
+        return {
+            "state": "OPEN",
+            "reason": "STATE_MISSING",
+            "detected_at": utc_now(),
+            "actor": "system",
+        }
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        state = data.get("state")
+        if state not in VALID_STATES:
+            raise ValueError("invalid state")
+        return data
+    except Exception:
+        return {
+            "state": "OPEN",
+            "reason": "STATE_INVALID",
+            "detected_at": utc_now(),
+            "actor": "system",
+        }
+
+
+def write_state(path, state, reason, actor):
+    if state not in VALID_STATES:
+        raise ValueError("invalid state")
+    if reason not in VALID_REASONS:
+        reason = "MANUAL_BLOCK" if state == "OPEN" else "MANUAL_OPEN"
+    payload = {
+        "state": state,
+        "reason": reason,
+        "detected_at": utc_now(),
+        "actor": actor,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+    return payload
+
+
+def nginx_paths(nginx_dir, conf_prefix):
+    nginx_dir = Path(nginx_dir)
+    return {
+        "link": nginx_dir / f"{conf_prefix}.conf",
+        "closed": nginx_dir / f"{conf_prefix}.closed.conf",
+        "open": nginx_dir / f"{conf_prefix}.open.conf",
+        "half": nginx_dir / f"{conf_prefix}.half.conf",
+    }
+
+
+def run_cmd(cmd):
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+
+def reload_nginx():
+    code, out, err = run_cmd(["nginx", "-t"])
+    if code != 0:
+        raise RuntimeError(f"nginx -t failed: {err or out}")
+    code, out, err = run_cmd(["nginx", "-s", "reload"])
+    if code != 0:
+        raise RuntimeError(f"nginx reload failed: {err or out}")
+
+
+def switch_state(conf, state, no_reload):
+    paths = nginx_paths(conf["nginx_dir"], conf["conf_prefix"])
+    target = {
+        "CLOSED": paths["closed"],
+        "OPEN": paths["open"],
+        "HALF": paths["half"],
+    }[state]
+
+    if not target.exists():
+        raise FileNotFoundError(f"Missing nginx config: {target}")
+
+    link_path = paths["link"]
+    if link_path.exists() or link_path.is_symlink():
+        link_path.unlink()
+    link_path.symlink_to(target)
+
+    if not no_reload:
+        reload_nginx()
+
+
+def check_auth(auth_file):
+    path = Path(auth_file)
+    return path.exists() and path.is_file() and path.stat().st_size > 0
+
+
+def check_listen_addresses(breaker_port):
+    cmd = ["lsof", "-nP", f"-iTCP:{breaker_port}", "-sTCP:LISTEN"]
+    code, out, err = run_cmd(cmd)
+    if code != 0:
+        return False, f"lsof failed: {err or out}"
+    if not out.strip():
+        return False, "no listeners on breaker port"
+
+    bad = []
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if not parts:
+            continue
+        addr = parts[-2] if len(parts) >= 2 else ""
+        # addr looks like TCP 127.0.0.1:8080 or TCP *:8080 or TCP [::1]:8080
+        if ":" in addr:
+            addr = addr.split(":")[0]
+        addr = addr.strip("[]")
+        if addr in {"127.0.0.1", "::1"}:
+            continue
+        bad.append(addr or "unknown")
+
+    if bad:
+        return False, f"public listener(s): {', '.join(sorted(set(bad)))}"
+    return True, ""
+
+
+def check_port_open(host, port, timeout=1.5):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def print_state(state, path):
+    print(f"STATE: {state.get('state', 'UNKNOWN')}")
+    if state.get("reason"):
+        print(f"REASON: {state.get('reason')}")
+    if state.get("detected_at"):
+        print(f"DETECTED_AT: {state.get('detected_at')}")
+    if state.get("actor"):
+        print(f"ACTOR: {state.get('actor')}")
+    print(f"STATE_FILE: {path}")
+
+
+def cmd_status(conf, _args):
+    path = Path(conf["state_file"])
+    state = read_state(path)
+    print_state(state, path)
+
+
+def cmd_block(conf, args):
+    path = Path(conf["state_file"])
+    payload = write_state(path, "OPEN", "MANUAL_BLOCK", "user")
+    switch_state(conf, "OPEN", args.no_reload)
+    print("Breaker opened (OPEN)")
+    print(f"Reason: {payload['reason']}")
+    print(f"State saved to: {path}")
+
+
+def cmd_recovery(conf, args):
+    path = Path(conf["state_file"])
+    payload = write_state(path, "HALF", "RECOVERY", "user")
+    switch_state(conf, "HALF", args.no_reload)
+    print("Breaker in HALF")
+    print("Only allowlist traffic allowed (127.0.0.1)")
+    print("Run verification tests with: moltbot-hardened verify")
+    print(f"State saved to: {path}")
+
+
+def cmd_open(conf, args):
+    path = Path(conf["state_file"])
+    payload = write_state(path, "CLOSED", "MANUAL_OPEN", "user")
+    switch_state(conf, "CLOSED", args.no_reload)
+    print("Breaker closed (CLOSED)")
+    print("Admin panel now accessible")
+    print(f"Reason: {payload['reason']}")
+    print(f"State saved to: {path}")
+
+
+def cmd_verify(conf, _args):
+    failures = 0
+
+    auth_ok = check_auth(conf["auth_file"])
+    if auth_ok:
+        print("OK Auth configured")
+    else:
+        print(f"FAIL Auth file missing or empty: {conf['auth_file']}")
+        failures += 1
+
+    listen_ok, listen_msg = check_listen_addresses(conf["breaker_port"])
+    if listen_ok:
+        print("OK No public ports exposed on breaker")
+    else:
+        print(f"FAIL Breaker listen check: {listen_msg}")
+        failures += 1
+
+    nginx_ok = True
+    code, out, err = run_cmd(["nginx", "-t"])
+    if code != 0:
+        nginx_ok = False
+        print(f"FAIL Nginx config invalid: {err or out}")
+        failures += 1
+    else:
+        print("OK Nginx config valid")
+
+    control_ok = check_port_open("127.0.0.1", conf["control_port"])
+    if control_ok:
+        print("OK Control plane reachable on 127.0.0.1")
+    else:
+        print("FAIL Control plane not reachable on 127.0.0.1")
+        failures += 1
+
+    if failures:
+        print(f"Verification failed: {failures} issue(s)")
+        sys.exit(1)
+
+    print("All checks passed. Ready to close circuit.")
+    print("Run: moltbot-hardened open")
+
+
+def build_parser():
+    conf = config_from_env()
+
+    parser = argparse.ArgumentParser(prog="moltbot-hardened")
+    parser.add_argument("--state-file", default=conf["state_file"])
+    parser.add_argument("--nginx-dir", default=conf["nginx_dir"])
+    parser.add_argument("--conf-prefix", default=conf["conf_prefix"])
+    parser.add_argument("--auth-file", default=conf["auth_file"])
+    parser.add_argument("--control-port", type=int, default=conf["control_port"])
+    parser.add_argument("--breaker-port", type=int, default=conf["breaker_port"])
+
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_status = sub.add_parser("status")
+    p_status.set_defaults(func=cmd_status)
+
+    p_block = sub.add_parser("block")
+    p_block.add_argument("--no-reload", action="store_true")
+    p_block.set_defaults(func=cmd_block)
+
+    p_recovery = sub.add_parser("recovery")
+    p_recovery.add_argument("--no-reload", action="store_true")
+    p_recovery.set_defaults(func=cmd_recovery)
+
+    p_open = sub.add_parser("open")
+    p_open.add_argument("--no-reload", action="store_true")
+    p_open.set_defaults(func=cmd_open)
+
+    p_verify = sub.add_parser("verify")
+    p_verify.set_defaults(func=cmd_verify)
+
+    return parser
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    conf = {
+        "state_file": args.state_file,
+        "nginx_dir": args.nginx_dir,
+        "conf_prefix": args.conf_prefix,
+        "auth_file": args.auth_file,
+        "control_port": args.control_port,
+        "breaker_port": args.breaker_port,
+    }
+
+    try:
+        args.func(conf, args)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
