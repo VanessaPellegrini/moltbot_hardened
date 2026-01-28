@@ -8,6 +8,28 @@
 moltbot-hardened is an open-source, security-first reference architecture
 for running Moltbot safely on macOS.
 
+## Status & Warnings
+
+**⚠️ This project is ALPHA/EXPERIMENTAL**
+
+- **Not production-ready** - Use for testing and development only
+- **No security guarantees** - Security claims are design-level, not audited
+- **APIs may change** - Breaking changes without notice in future versions
+- **Use at your own risk** - No liability for damages or data loss
+
+**Supported Platform:**
+
+- ✅ macOS (Darwin 24.6.0+ tested)
+- ❌ Linux (not supported, may work with modifications)
+- ❌ Windows (not supported)
+
+**Before You Use:**
+
+1. Read [THREAT_MODEL.md](THREAT_MODEL.md) to understand security scope
+2. Read [INSTALL.md](INSTALL.md) for installation steps
+3. Review [PHASE2.md](PHASE2.md) to understand current implementation status
+4. Test thoroughly in a non-production environment
+
 ## Goal
 
 Prevent real-world security incidents caused by human misconfiguration, such as:

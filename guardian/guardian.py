@@ -119,8 +119,15 @@ def check_unauth_access(breaker_port):
     return True, f"unexpected status {code} without auth"
 
 
-def open_circuit(cli, reason):
-    cmd = [cli, "block", "--reason", "EXPOSURE_DETECTED", "--actor", "guardian"]
+def open_circuit(conf, reason):
+    # Call Python script directly to avoid wrapper bash restrictions in daemon mode
+    cmd = [
+        "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "/usr/local/lib/moltbot-hardened/moltbot-hardened",
+        "block",
+        "--reason", reason,
+        "--actor", "guardian"
+    ]
     code, out, err = run_cmd(cmd)
     if code != 0:
         return False, err or out
@@ -144,7 +151,7 @@ def guardian_cycle(conf):
 
     if issues:
         logging.warning("exposure detected: %s", "; ".join(issues))
-        ok, msg = open_circuit(conf["cli"], "EXPOSURE_DETECTED")
+        ok, msg = open_circuit(conf, "EXPOSURE_DETECTED")
         if ok:
             logging.warning("circuit opened")
         else:

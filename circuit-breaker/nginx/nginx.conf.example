@@ -1,4 +1,4 @@
-user $(whoami) staff;
+user nginx;  # Change to your user on macOS: $(whoami) staff;
 worker_processes auto;
 error_log /usr/local/var/log/nginx/error.log info;
 pid /usr/local/var/run/nginx.pid;

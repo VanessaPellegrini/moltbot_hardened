@@ -201,17 +201,17 @@ See [guardian/checks.md](./checks.md) for detailed documentation of all checks.
 ### Installing Guardian
 
 ```bash
-# 1. Install Guardian daemon and CLI wrapper
-chmod +x /Users/vanessapellegrini/Documents/dev/moltbot-hardened/guardian/moltbot-hardened-guardian
-sudo ln -sf /Users/vanessapellegrini/Documents/dev/moltbot-hardened/guardian/moltbot-hardened-guardian \
-         /usr/local/bin/moltbot-hardened-guardian
+# 1. Install Guardian daemon and CLI
+chmod +x $PWD/guardian/guardian.py
+sudo ln -sf $PWD/guardian/guardian.py \
+         /usr/local/lib/moltbot-hardened/guardian.py
 
-chmod +x /Users/vanessapellegrini/Documents/dev/moltbot-hardened/guardian/moltbot-hardened-guardian
-sudo ln -sf /Users/vanessapellegrini/Documents/dev/moltbot-hardened/guardian/moltbot-hardened-guardian \
+chmod +x $PWD/bin/moltbot-hardened
+sudo ln -sf $PWD/bin/moltbot-hardened \
          /usr/local/bin/moltbot-hardened
 
 # 2. Install launchd plist
-sudo cp /Users/vanessapellegrini/Documents/dev/moltbot-hardened/guardian/launchd/io.moltbot.hardened.guardian.plist \
+sudo cp $PWD/guardian/launchd/io.moltbot.hardened.guardian.plist \
        /Library/LaunchDaemons/
 
 # 3. Load and start Guardian

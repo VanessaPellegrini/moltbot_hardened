@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.env/
+
+# Node
+node_modules/
+
+# Build artifacts
+build/
+dist/
+coverage/
+
+# Temp
+.tmp/
+.tmp*/
+*.tmp
+.cache/
+
+# NOTE: Logs are intentionally NOT ignored for this project.
+
+# Local testing artifacts
+testing/
