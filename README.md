@@ -53,8 +53,6 @@ the system blocks access before it becomes exploitable:
 
 ## Core Principles
 
-## Core Principles
-
 - Control plane never exposed by default
 - Authentication is mandatory
 - Unsafe states automatically degrade to locked-down mode
