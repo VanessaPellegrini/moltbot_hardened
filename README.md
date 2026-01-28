@@ -128,6 +128,9 @@ cat PHASE1.md
 - [Edge Cases](./ops/edge-cases.md) - Failure modes and recovery
 - [CLI](./CLI.md) - Command-line usage
 - [KANBAN](./KANBAN.md) - Phase 1 progress
+- [Schema](./schemas/breaker-state.schema.json) - Breaker state JSON schema
+- [Messages](./ops/messages.md) - Standard user-facing message format
+- [Response Schema](./schemas/breaker-response.schema.json) - Breaker response JSON schema
 
 ## License
 

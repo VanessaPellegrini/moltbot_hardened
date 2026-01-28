@@ -35,6 +35,11 @@ Display current breaker state.
 moltbot-hardened status
 ```
 
+**JSON output:**
+```bash
+moltbot-hardened status --json
+```
+
 **Output example:**
 ```
 STATE: OPEN
@@ -61,6 +66,7 @@ moltbot-hardened block
 ```bash
 moltbot-hardened block --reason "SECURITY_EVENT" --actor admin
 moltbot-hardened block --no-reload  # Update state without reloading Nginx
+moltbot-hardened block --json
 ```
 
 **Flags:**
@@ -89,6 +95,7 @@ moltbot-hardened recovery
 ```bash
 moltbot-hardened recovery --actor admin
 moltbot-hardened recovery --no-reload
+moltbot-hardened recovery --json
 ```
 
 **Flags:**
@@ -117,6 +124,7 @@ moltbot-hardened open
 ```bash
 moltbot-hardened open --reason "FIX_COMPLETE" --actor admin
 moltbot-hardened open --no-reload
+moltbot-hardened open --json
 ```
 
 **Flags:**

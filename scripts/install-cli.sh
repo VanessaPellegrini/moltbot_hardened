@@ -9,6 +9,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 INSTALL_DIR="/usr/local/lib/moltbot-hardened"
 BIN_PATH="/usr/local/bin/moltbot-hardened"
 PYTHON_BIN="/Library/Developer/CommandLineTools/usr/bin/python3"
@@ -20,13 +21,13 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo -e "${GREEN}=========================================${NC}"
- echo -e "${GREEN}  Moltbot Hardened - CLI Install${NC}"
- echo -e "${GREEN}=========================================${NC}"
- echo ""
+echo -e "${GREEN}  Moltbot Hardened - CLI Install${NC}"
+echo -e "${GREEN}=========================================${NC}"
+echo ""
 
 echo -e "${YELLOW}Step 1: Installing CLI...${NC}"
 mkdir -p "$INSTALL_DIR"
-cp "$SCRIPT_DIR/bin/moltbot-hardened" "$INSTALL_DIR/moltbot-hardened"
+cp "$REPO_DIR/bin/moltbot-hardened" "$INSTALL_DIR/moltbot-hardened"
 chmod +x "$INSTALL_DIR/moltbot-hardened"
 
 echo -e "${YELLOW}Step 2: Creating wrapper...${NC}"
@@ -39,6 +40,6 @@ chmod +x "$BIN_PATH"
 echo -e "${GREEN}✓${NC} CLI installed"
 
 echo ""
- echo -e "${GREEN}Done.${NC}"
- echo "Binary: $BIN_PATH"
- echo "Script: $INSTALL_DIR/moltbot-hardened"
+echo -e "${GREEN}Done.${NC}"
+echo "Binary: $BIN_PATH"
+echo "Script: $INSTALL_DIR/moltbot-hardened"

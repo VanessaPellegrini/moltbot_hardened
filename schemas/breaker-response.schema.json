@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/breaker-response.schema.json",
+  "title": "Moltbot Hardened Breaker Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "reason",
+    "detected_at",
+    "actor",
+    "message",
+    "next_step"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["1.0"] },
+    "state": { "type": "string", "enum": ["CLOSED", "OPEN", "HALF"] },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "MANUAL_BLOCK",
+        "MANUAL_OPEN",
+        "RECOVERY",
+        "EXPOSURE_DETECTED",
+        "STATE_INVALID",
+        "STATE_MISSING"
+      ]
+    },
+    "detected_at": { "type": "string", "format": "date-time" },
+    "actor": { "type": "string", "enum": ["user", "guardian", "system"] },
+    "message": { "type": "string" },
+    "next_step": { "type": "string" }
+  }
+}

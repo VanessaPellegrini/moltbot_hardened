@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/breaker-state.schema.json",
+  "title": "Moltbot Hardened Breaker State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "reason", "detected_at", "actor"],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": ["CLOSED", "OPEN", "HALF"]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "MANUAL_BLOCK",
+        "MANUAL_OPEN",
+        "RECOVERY",
+        "EXPOSURE_DETECTED",
+        "STATE_INVALID",
+        "STATE_MISSING"
+      ]
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp in ISO 8601 format"
+    },
+    "actor": {
+      "type": "string",
+      "enum": ["user", "guardian", "system"]
+    }
+  }
+}

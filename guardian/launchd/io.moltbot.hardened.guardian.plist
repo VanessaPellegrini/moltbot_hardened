@@ -25,8 +25,24 @@
 
     <key>EnvironmentVariables</key>
     <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
         <key>MBH_GUARDIAN_LOG</key>
         <string>/usr/local/var/log/moltbot-hardened/guardian.log</string>
+        <key>MBH_STATE_FILE</key>
+        <string>/usr/local/var/moltbot-hardened/state/breaker-state.json</string>
+        <key>MBH_NGINX_DIR</key>
+        <string>/usr/local/etc/nginx/servers</string>
+        <key>MBH_CONF_PREFIX</key>
+        <string>moltbot-control</string>
+        <key>MBH_AUTH_FILE</key>
+        <string>/usr/local/etc/nginx/.htpasswd</string>
+        <key>MBH_CONTROL_PORT</key>
+        <string>3000</string>
+        <key>MBH_BREAKER_PORT</key>
+        <string>8080</string>
+        <key>MBH_GUARDIAN_INTERVAL</key>
+        <string>30</string>
         <key>MBH_CLI</key>
         <string>/usr/local/bin/moltbot-hardened</string>
     </dict>

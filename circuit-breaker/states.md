@@ -44,7 +44,7 @@ server {
 
     default_type application/json;
     location / {
-        return 403 '{"state":"OPEN","reason":"MANUAL_BLOCK","detected_at":"0000-00-00T00:00:00Z","next_step":"Fix configuration and run recovery"}';
+        return 403 '{"schema_version":"1.0","state":"OPEN","reason":"MANUAL_BLOCK","detected_at":"0000-00-00T00:00:00Z","actor":"system","message":"Access blocked by circuit breaker","next_step":"Fix configuration and run recovery"}';
     }
 }
 ```
@@ -70,7 +70,7 @@ server {
 
     default_type application/json;
     location / {
-        return 503 '{"state":"HALF","message":"System in recovery mode","allowed":"127.0.0.1 /health/check only"}';
+        return 503 '{"schema_version":"1.0","state":"HALF","reason":"RECOVERY","detected_at":"0000-00-00T00:00:00Z","actor":"system","message":"System in recovery mode","next_step":"Run verify, then open"}';
     }
 }
 ```

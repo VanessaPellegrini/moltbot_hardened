@@ -9,6 +9,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LAUNCHD_PLIST="io.moltbot.hardened.guardian.plist"
 LAUNCHD_DEST="/Library/LaunchDaemons/$LAUNCHD_PLIST"
 LOG_DIR="/usr/local/var/log/moltbot-hardened"
@@ -27,7 +28,7 @@ echo ""
 
 echo -e "${YELLOW}Step 1: Installing guardian...${NC}"
 mkdir -p "$INSTALL_DIR"
-cp "$SCRIPT_DIR/guardian/guardian.py" "$INSTALL_DIR/guardian.py"
+cp "$REPO_DIR/guardian/guardian.py" "$INSTALL_DIR/guardian.py"
 chmod +x "$INSTALL_DIR/guardian.py"
 
 echo -e "${GREEN}✓${NC} guardian installed to $INSTALL_DIR"
@@ -38,7 +39,7 @@ mkdir -p "$LOG_DIR"
 echo -e "${GREEN}✓${NC} log dir ready: $LOG_DIR"
 
 echo -e "${YELLOW}Step 3: Installing launchd plist...${NC}"
-cp "$SCRIPT_DIR/guardian/launchd/$LAUNCHD_PLIST" "$LAUNCHD_DEST"
+cp "$REPO_DIR/guardian/launchd/$LAUNCHD_PLIST" "$LAUNCHD_DEST"
 chown root:wheel "$LAUNCHD_DEST"
 chmod 644 "$LAUNCHD_DEST"
 
