@@ -26,6 +26,8 @@ STATE_DIR="/usr/local/var/moltbot-hardened/state"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OWNER_USER="${SUDO_USER:-$(whoami)}"
 OWNER_GROUP="staff"
+INSTALL_DIR="/usr/local/lib/moltbot-hardened"
+BIN_PATH="/usr/local/bin/moltbot-hardened"
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -53,7 +55,22 @@ if ! command -v htpasswd &> /dev/null; then
 fi
 
 echo ""
-echo -e "${YELLOW}Step 2: Creating directories...${NC}"
+echo -e "${YELLOW}Step 2: Installing CLI...${NC}"
+
+mkdir -p "$INSTALL_DIR"
+cp "$SCRIPT_DIR/bin/moltbot-hardened" "$INSTALL_DIR/moltbot-hardened"
+chmod +x "$INSTALL_DIR/moltbot-hardened"
+
+cat > "$BIN_PATH" <<'WRAP'
+#!/bin/bash
+exec /Library/Developer/CommandLineTools/usr/bin/python3 /usr/local/lib/moltbot-hardened/moltbot-hardened "$@"
+WRAP
+chmod +x "$BIN_PATH"
+
+echo -e "${GREEN}✓${NC} CLI installed"
+
+echo ""
+echo -e "${YELLOW}Step 3: Creating directories...${NC}"
 
 # Create directories with proper permissions
 mkdir -p "$NGINX_CONF_DIR"
@@ -69,7 +86,7 @@ echo "  - $STATE_DIR"
 echo "  - $NGINX_LOG_DIR"
 
 echo ""
-echo -e "${YELLOW}Step 3: Creating mime.types...${NC}"
+echo -e "${YELLOW}Step 4: Creating mime.types...${NC}"
 
 # Create mime.types only if it doesn't exist
 if [ ! -f "$NGINX_MIME_TYPES" ]; then
@@ -90,7 +107,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}Step 4: Copying state configs...${NC}"
+echo -e "${YELLOW}Step 5: Copying state configs...${NC}"
 
 # Copy state configurations from repo templates
 cp "$SCRIPT_DIR/circuit-breaker/nginx/moltbot-control.closed.conf" "$NGINX_SERVERS_DIR/"
@@ -103,7 +120,7 @@ echo "  - $NGINX_SERVERS_DIR/moltbot-control.half.conf"
 echo "  - $NGINX_SERVERS_DIR/moltbot-control.open.conf"
 
 echo ""
-echo -e "${YELLOW}Step 5: Creating main nginx.conf...${NC}"
+echo -e "${YELLOW}Step 6: Creating main nginx.conf...${NC}"
 
 # Create main nginx.conf
 tee "$NGINX_CONF_DIR/nginx.conf" > /dev/null <<NG
@@ -142,7 +159,7 @@ NG
 echo -e "${GREEN}✓${NC} nginx.conf created"
 
 echo ""
-echo -e "${YELLOW}Step 6: Creating initial state...${NC}"
+echo -e "${YELLOW}Step 7: Creating initial state...${NC}"
 
 # Create initial state file (OPEN for safety)
 mkdir -p "$STATE_DIR"
@@ -151,7 +168,7 @@ echo "{\"state\":\"OPEN\",\"reason\":\"INITIAL_SETUP\",\"detected_at\":\"$(date 
 echo -e "${GREEN}✓${NC} Initial state created: OPEN"
 
 echo ""
-echo -e "${YELLOW}Step 7: Setting active symlink to OPEN (safe default)...${NC}"
+echo -e "${YELLOW}Step 8: Setting active symlink to OPEN (safe default)...${NC}"
 
 # Set active symlink to OPEN state (safe default)
 ln -sf "$NGINX_SERVERS_DIR/moltbot-control.open.conf" "$NGINX_SERVERS_DIR/moltbot-control.conf"
@@ -159,7 +176,7 @@ ln -sf "$NGINX_SERVERS_DIR/moltbot-control.open.conf" "$NGINX_SERVERS_DIR/moltbo
 echo -e "${GREEN}✓${NC} Active symlink set to: moltbot-control.conf.open"
 
 echo ""
-echo -e "${YELLOW}Step 8: Fixing log file permissions...${NC}"
+echo -e "${YELLOW}Step 9: Fixing log file permissions...${NC}"
 
 # Fix log permissions
 chown "$OWNER_USER:$OWNER_GROUP" "$NGINX_LOG_DIR"
@@ -168,7 +185,7 @@ chmod 750 "$NGINX_LOG_DIR"
 echo -e "${GREEN}✓${NC} Log permissions fixed"
 
 echo ""
-echo -e "${YELLOW}Step 9: Testing nginx configuration...${NC}"
+echo -e "${YELLOW}Step 10: Testing nginx configuration...${NC}"
 
 # Test nginx configuration
 if nginx -t 2>&1; then
@@ -183,7 +200,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}Step 10: Starting nginx...${NC}"
+echo -e "${YELLOW}Step 11: Starting nginx...${NC}"
 
 # Start nginx
 if nginx 2>&1; then
@@ -195,7 +212,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}Step 11: Verifying installation...${NC}"
+echo -e "${YELLOW}Step 12: Verifying installation...${NC}"
 
 # Verify nginx is listening
 if lsof -i :8080 | grep -q LISTEN; then
@@ -206,7 +223,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}Step 12: Testing states...${NC}"
+echo -e "${YELLOW}Step 13: Testing states...${NC}"
 
 echo ""
 echo "Testing OPEN state (current):"

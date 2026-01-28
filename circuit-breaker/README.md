@@ -276,10 +276,10 @@ nginx -s reload
 **Solution:**
 ```bash
 # Verify auth file exists
-ls -la /etc/nginx/.htpasswd
+ls -la /usr/local/etc/nginx/.htpasswd
 
 # Create auth user (if needed)
-htpasswd -c /etc/nginx/.htpasswd admin
+htpasswd -c /usr/local/etc/nginx/.htpasswd admin
 
 # Check Nginx config
 grep -n "auth_basic" /usr/local/etc/nginx/servers/moltbot-control.conf

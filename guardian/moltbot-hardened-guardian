@@ -1,0 +1,238 @@
+#!/bin/bash
+
+# moltbot-hardened - Guardian CLI Wrapper
+# This script wraps the Python Guardian daemon with easier commands
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GUARDIAN_BIN="$SCRIPT_DIR/bin/moltbot-hardened-guardian"
+GUARDIAN_LOG="/usr/local/var/log/moltbot-hardened/guardian.log"
+STATE_FILE="/usr/local/var/moltbot-hardened/state/breaker-state.json"
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Function to read current state
+read_state() {
+    if [ -f "$STATE_FILE" ]; then
+        echo "$STATE_FILE"
+    else
+        echo '{"state":"UNKNOWN","reason":"STATE_FILE_NOT_FOUND"}'
+    fi
+}
+
+# Function to display current state
+status() {
+    echo -e "${YELLOW}Circuit Breaker Status:${NC}"
+    echo ""
+    cat "$(read_state)" | python3 -m json.tool
+    echo ""
+    echo -e "${YELLOW}Guardian Log (last 10 lines):${NC}"
+    tail -10 "$GUARDIAN_LOG" 2>/dev/null || echo "(no guardian log yet)"
+}
+
+# Function to trigger manual block (opens circuit)
+block() {
+    local reason="${1:-MANUAL_BLOCK}"
+
+    echo -e "${YELLOW}Opening Circuit Breaker...${NC}"
+    echo -e "Reason: ${reason}"
+
+    python3 "$GUARDIAN_BIN" \
+        --action open \
+        --reason "$reason" \
+        --actor user \
+        --log-level INFO
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Circuit Breaker opened"
+        echo ""
+        echo -e "Nginx will reload automatically within 30-60 seconds"
+        echo "Or force reload: sudo nginx -s reload"
+    else
+        echo -e "${RED}✗${NC} Failed to open Circuit Breaker"
+    fi
+}
+
+# Function to request recovery mode (half-open)
+recovery() {
+    echo -e "${YELLOW}Requesting Recovery Mode (HALF-OPEN)...${NC}"
+    echo -e "${YELLOW}This allows only localhost verification access${NC}"
+
+    python3 "$GUARDIAN_BIN" \
+        --action recovery \
+        --actor user \
+        --log-level INFO
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Recovery mode activated"
+        echo ""
+        echo -e "${YELLOW}Next steps:${NC}"
+        echo "  1. Run verification: $0 status"
+        echo "  2. Test health endpoint: curl http://127.0.0.1:8080/health"
+        echo "  3. If verification passes, run: $0 open"
+    else
+        echo -e "${RED}✗${NC} Failed to activate recovery mode"
+    fi
+}
+
+# Function to close circuit (normal operation)
+open() {
+    echo -e "${YELLOW}Closing Circuit Breaker (returning to normal operation)...${NC}"
+    echo -e "${YELLOW}IMPORTANT: Ensure configuration is secure before closing!${NC}"
+
+    python3 "$GUARDIAN_BIN" \
+        --action open \
+        --actor user \
+        --log-level INFO
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Circuit Breaker closed"
+        echo ""
+        echo -e "${YELLOW}Nginx will reload automatically within 30-60 seconds${NC}"
+        echo "Or force reload: sudo nginx -s reload"
+    else
+        echo -e "${RED}✗${NC} Failed to close Circuit Breaker"
+    fi
+}
+
+# Function to run verification checks
+verify() {
+    echo -e "${YELLOW}Running verification checks...${NC}"
+    echo ""
+
+    # Check 1: State file exists
+    if [ ! -f "$STATE_FILE" ]; then
+        echo -e "${RED}✗${NC} State file not found"
+        return 1
+    fi
+
+    # Check 2: Auth file exists and is not empty
+    local auth_file="/usr/local/etc/nginx/.htpasswd"
+    if [ ! -f "$auth_file" ] || [ ! -s "$auth_file" ]; then
+        echo -e "${RED}✗${NC} Auth file missing or empty"
+        echo "  File: $auth_file"
+        return 1
+    else
+        echo -e "${GREEN}✓${NC} Auth file exists and is not empty"
+    fi
+
+    # Check 3: No public port binding
+    local public_check=$(lsof -i :8080 -nP | grep LISTEN | awk '{print $5}')
+    if [ "$public_check" == "0.0.0.0" ] || [ "$public_check" == "::" ]; then
+        echo -e "${RED}✗${NC} Public port detected!"
+        echo "  Port 8080 is bound to $public_check"
+        return 1
+    elif [ -z "$public_check" ]; then
+        echo -e "${GREEN}✓${NC} No listener on port 8080 (Nginx may be stopped)"
+        return 0
+    else
+        echo -e "${GREEN}✓${NC} Port 8080 is bound to $public_check (safe)"
+    fi
+
+    # Check 4: State file is valid JSON
+    if ! python3 -m json.tool "$STATE_FILE" &>/dev/null; then
+        echo -e "${RED}✗${NC} State file is not valid JSON"
+        return 1
+    fi
+
+    echo ""
+    echo -e "${GREEN}All verification checks passed!${NC}"
+    return 0
+}
+
+# Function to stop guardian daemon
+stop_guardian() {
+    echo -e "${YELLOW}Stopping Guardian daemon...${NC}"
+
+    if [ "$1" == "force" ]; then
+        # Force kill
+        pkill -9 -f "moltbot-hardened-guardian"
+        echo -e "${GREEN}✓${NC} Guardian daemon stopped (forced)"
+    else
+        # Use launchctl
+        launchctl stop io.moltbot.hardened.guardian &>/dev/null
+
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓${NC} Guardian daemon stopped"
+        else
+            echo -e "${YELLOW}⚠${NC}  Guardian may not have been running"
+        fi
+    fi
+}
+
+# Function to start guardian daemon
+start_guardian() {
+    echo -e "${YELLOW}Starting Guardian daemon...${NC}"
+
+    # Check if guardian is already running
+    launchctl list | grep -q "io.moltbot.hardened.guardian"
+    if [ $? -eq 0 ]; then
+        echo -e "${YELLOW}⚠${NC}  Guardian is already running"
+        echo "  Use 'stop_guardian' first if you want to restart"
+        return 1
+    fi
+
+    # Load plist
+    launchctl load "$SCRIPT_DIR/guardian/launchd/io.moltbot.hardened.guardian.plist" &>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Guardian daemon started"
+        echo ""
+        echo -e "${YELLOW}Monitoring interval: 30 seconds${NC}"
+        echo -e "${YELLOW}Log file: $GUARDIAN_LOG${NC}"
+        echo ""
+        echo -e "View logs with: tail -f $GUARDIAN_LOG"
+        echo "View status with: $0 status"
+    else
+        echo -e "${RED}✗${NC} Failed to start Guardian daemon"
+        return 1
+    fi
+}
+
+# Main entry point
+case "${1:-}" in
+    status)
+        status
+        ;;
+    block|b)
+        block "${2:-MANUAL_BLOCK}"
+        ;;
+    recovery|r)
+        recovery
+        ;;
+    open)
+        open
+        ;;
+    verify|v)
+        verify
+        ;;
+    stop_guardian)
+        stop_guardian
+        ;;
+    start_guardian)
+        start_guardian
+        ;;
+    *)
+        echo "moltbot-hardened - Guardian CLI Wrapper"
+        echo ""
+        echo "Usage: $0 <command> [options]"
+        echo ""
+        echo "Commands:"
+        echo "  status           - Show current breaker state and guardian log"
+        echo "  block [reason]    - Open circuit breaker (blocks access)"
+        echo "  recovery         - Request recovery mode (half-open)"
+        echo "  open             - Close circuit breaker (normal operation)"
+        echo "  verify           - Run verification checks"
+        echo "  start_guardian   - Start Guardian daemon"
+        echo "  stop_guardian    - Stop Guardian daemon (use 'force' to kill)"
+        echo ""
+        echo "Options:"
+        echo "  status           - Include state in output (for verify command)"
+        exit 1
+        ;;
+esac

@@ -30,6 +30,12 @@ moltbot-hardened status
 moltbot-hardened block
 ```
 
+Optional:
+
+```bash
+moltbot-hardened block --reason EXPOSURE_DETECTED --actor guardian
+```
+
 ### recovery
 
 ```bash
@@ -40,6 +46,12 @@ moltbot-hardened recovery
 
 ```bash
 moltbot-hardened open
+```
+
+Optional:
+
+```bash
+moltbot-hardened open --reason MANUAL_OPEN --actor user
 ```
 
 ### verify

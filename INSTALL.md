@@ -40,6 +40,14 @@ sudo chown -R $(whoami):staff /usr/local/var/log/nginx/
 
 ---
 
+## Step 2.5: Install CLI
+
+```bash
+sudo ./install-cli.sh
+```
+
+---
+
 ## Step 3: Create mime.types (if not exists)
 
 ```bash
@@ -302,3 +310,38 @@ brew uninstall nginx
 ---
 
 *Last updated: 27 January 2026*
+
+---
+
+# Installation Guide - Phase 2 (Exposure Guardian)
+
+## Quick install (script)
+
+```bash
+sudo ./install-guardian.sh
+```
+
+## Manual install (advanced)
+
+```bash
+sudo ./install-guardian.sh
+```
+
+## Step 2: Install launchd plist (if doing manual steps)
+
+```bash
+sudo cp guardian/launchd/io.moltbot.hardened.guardian.plist /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
+```
+
+## Step 3: Load the daemon
+
+```bash
+sudo launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
+```
+
+## Step 4: Verify logs
+
+```bash
+tail -f /usr/local/var/log/moltbot-hardened/guardian.log
+```

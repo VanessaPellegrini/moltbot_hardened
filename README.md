@@ -65,6 +65,12 @@ Currently implementing manual control plane blocking before Guardian automation.
 
 See [PHASE1.md](./PHASE1.md) for details and progress.
 
+**Phase 2: Exposure Guardian**
+
+Automatic exposure detection and breaker opening.
+
+See [PHASE2.md](./PHASE2.md) for details and progress.
+
 ## What's Included
 
 - **Guardian Daemon:** macOS launchd service that monitors exposure
@@ -93,6 +99,7 @@ cat PHASE1.md
 - [Architecture](./ARCHITECTURE.md) - System design and patterns
 - [Threat Model](./THREAT_MODEL.md) - Security threat analysis
 - [PHASE1.md](./PHASE1.md) - Current phase implementation plan
+- [PHASE2.md](./PHASE2.md) - Guardian phase implementation plan
 - [Circuit Breaker](./circuit-breaker/README.md) - How the breaker works
 - [Guardian](./guardian/README.md) - What the guardian monitors
 - [Operations](./ops/recovery.md) - Safe recovery procedures
