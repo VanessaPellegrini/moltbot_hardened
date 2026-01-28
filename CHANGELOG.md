@@ -7,7 +7,7 @@
 - Phase 1 CLI in Python with `status/block/recovery/open/verify`.
 - Phase 2 Guardian daemon (`guardian/guardian.py`) with exposure checks.
 - launchd plist for Guardian (`guardian/launchd/io.moltbot.hardened.guardian.plist`).
-- Installers: `install.sh`, `install-cli.sh`, `install-guardian.sh`.
+- Installers: `scripts/install.sh`, `scripts/install-cli.sh`, `scripts/install-guardian.sh`.
 - Documentation for Phase 1 and Phase 2 (`PHASE1.md`, `PHASE2.md`).
 
 ### Changed

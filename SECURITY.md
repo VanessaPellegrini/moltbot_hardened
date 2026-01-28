@@ -4,7 +4,6 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.2.x (alpha) | ⚠️ Experimental - No security support |
 | 0.1.x (alpha) | ⚠️ Experimental - No security support |
 
 **⚠️ IMPORTANT:** This project is in **ALPHA/EXPERIMENTAL** stage. It is **not production-ready** and provides **no security guarantees**.
@@ -19,7 +18,7 @@ If you discover a security vulnerability, please **do not**:
 
 **Instead, please:**
 
-1. **Email us**: [SECURITY_CONTACT_EMAIL]
+1. **Email us**: security@example.com
 2. **Include details**:
    - Vulnerability description
    - Steps to reproduce
@@ -51,7 +50,7 @@ This project implements several security patterns:
 ### Guardian Daemon
 - Monitors for public port binding
 - Detects missing authentication
-- Validates Nginx configuration
+- Detects unauthenticated access
 
 ### Hardening Measures
 - Control plane never exposed by default
@@ -65,9 +64,25 @@ This project implements several security patterns:
 - ❌ Code-level vulnerabilities in Moltbot
 - ❌ Physical access to device
 
-## Threat Model
+## Threat Model (Explicit Summary)
 
-See [THREAT_MODEL.md](./THREAT_MODEL.md) for detailed threat analysis and mitigation strategies.
+### Primary threats
+- Accidental public exposure of the control plane
+- Missing authentication on the control plane
+- Prompt injection leading to unintended execution
+- Secret leakage from logs or configuration
+
+### Assumptions
+- macOS is reasonably secure
+- The user is cooperative (not intentionally disabling protections)
+- Moltbot code is trusted; focus is on deployment safety
+
+### Out of scope
+- Local attackers (same machine)
+- Physical access to device
+- Sophisticated APTs
+
+Full details: [THREAT_MODEL.md](./THREAT_MODEL.md)
 
 ## Security Audits
 
@@ -87,7 +102,7 @@ We aim to minimize dependencies and keep them updated:
 
 For general security questions or discussions:
 - Open an issue with the `security` label
-- Join our community: [COMMUNITY_LINK]
+- Join our community: https://example.com/community
 
 ---
 

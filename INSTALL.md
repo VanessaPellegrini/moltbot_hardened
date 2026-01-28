@@ -43,7 +43,7 @@ sudo chown -R $USER:staff /usr/local/var/log/nginx/
 ## Step 2.5: Install CLI
 
 ```bash
-sudo ./install-cli.sh
+sudo ./scripts/install-cli.sh
 ```
 
 ---
@@ -318,13 +318,13 @@ brew uninstall nginx
 ## Quick install (script)
 
 ```bash
-sudo ./install-guardian.sh
+sudo ./scripts/install-guardian.sh
 ```
 
 ## Manual install (advanced)
 
 ```bash
-sudo ./install-guardian.sh
+sudo ./scripts/install-guardian.sh
 ```
 
 ## Step 2: Install launchd plist (if doing manual steps)

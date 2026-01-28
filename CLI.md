@@ -6,9 +6,17 @@ The CLI is implemented in Python and lives at:
 
 ## Install
 
+Recommended (system install):
+
+```bash
+sudo ./scripts/install-cli.sh
+```
+
+Local (repo):
+
 ```bash
 chmod +x bin/moltbot-hardened
-sudo ln -s "$PWD/bin/moltbot-hardened" /usr/local/bin/moltbot-hardened
+./bin/moltbot-hardened status
 ```
 
 ## Prerequisites
@@ -167,114 +175,6 @@ Verification failed: 1 issue(s)
 
 ---
 
-### start_guardian
-
-Start Guardian daemon via launchd. Loads and starts the Guardian service.
-
-```bash
-moltbot-hardened start_guardian
-```
-
-**What it does:**
-1. Verifies Guardian plist exists
-2. Checks if already running
-3. Loads plist into launchd
-4. Starts the Guardian daemon
-5. Displays log file location
-
-**Output examples:**
-
-**First start:**
-```
-Loading Guardian daemon from: /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-Guardian daemon loaded successfully
-Guardian daemon started successfully
-Log file: /usr/local/var/log/moltbot-hardened/guardian.log
-```
-
-**Already running:**
-```
-Guardian daemon is already running
-{
-  "PID": 12345,
-  "LastExitStatus": 0,
-  ...
-}
-```
-
-**Error (plist not found):**
-```
-ERROR: Guardian plist not found: /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-```
-
-**Flags:**
-- `--guardian-plist` - Path to Guardian plist (default: `/Library/LaunchDaemons/io.moltbot.hardened.guardian.plist`)
-- `--guardian-log` - Path to Guardian log (default: `/usr/local/var/log/moltbot-hardened/guardian.log`)
-
----
-
-### stop_guardian
-
-Stop Guardian daemon. Stops and unloads the Guardian service from launchd.
-
-```bash
-moltbot-hardened stop_guardian
-```
-
-**What it does:**
-1. Stops the Guardian daemon
-2. Unloads plist from launchd
-
-**Output examples:**
-
-**Success:**
-```
-Stopping Guardian daemon: io.moltbot.hardened.guardian
-Guardian daemon stopped successfully
-```
-
-**Not running:**
-```
-Guardian daemon is not running
-```
-
-**Flags:**
-- `--guardian-plist` - Path to Guardian plist (default: `/Library/LaunchDaemons/io.moltbot.hardened.guardian.plist`)
-
----
-
-### logs
-
-Show Guardian logs. Displays the last N lines from the Guardian log file.
-
-```bash
-moltbot-hardened logs
-```
-
-**Optional:**
-```bash
-moltbot-hardened logs --lines 50
-moltbot-hardened logs --lines 100
-```
-
-**Output example:**
-```
-Last 20 lines from /usr/local/var/log/moltbot-hardened/guardian.log:
-[2026-01-27T20:00:00Z] INFO guardian started
-[2026-01-27T20:00:30Z] INFO check cycle started
-[2026-01-27T20:00:31Z] INFO public port detected: 0.0.0.0:8080
-[2026-01-27T20:00:32Z] INFO opening circuit
-[2026-01-27T20:00:32Z] INFO state saved: OPEN
-[2026-01-27T20:00:35Z] INFO check cycle complete
-...
-```
-
-**Flags:**
-- `--lines` - Number of log lines to show (default: 20)
-- `--guardian-log` - Path to Guardian log (default: `/usr/local/var/log/moltbot-hardened/guardian.log`)
-
----
-
 ## Overrides
 
 You can override defaults with flags or environment variables.
@@ -283,7 +183,6 @@ You can override defaults with flags or environment variables.
 
 ```bash
 moltbot-hardened --state-file /tmp/breaker-state.json status
-moltbot-hardened --guardian-plist ~/dev/guardian.plist start_guardian
 ```
 
 ### Environment variables:
@@ -296,8 +195,7 @@ moltbot-hardened --guardian-plist ~/dev/guardian.plist start_guardian
 | `MBH_AUTH_FILE` | Auth file path | `/usr/local/etc/nginx/.htpasswd` |
 | `MBH_CONTROL_PORT` | Control plane port | `3000` |
 | `MBH_BREAKER_PORT` | Circuit breaker port | `8080` |
-| `MBH_GUARDIAN_PLIST` | Guardian plist path | `/Library/LaunchDaemons/io.moltbot.hardened.guardian.plist` |
-| `MBH_GUARDIAN_LOG` | Guardian log path | `/usr/local/var/log/moltbot-hardened/guardian.log` |
+| `MBH_GUARDIAN_LOG` | Guardian log path (for guardian daemon) | `/usr/local/var/log/moltbot-hardened/guardian.log` |
 
 ### Example using environment variables:
 
@@ -305,7 +203,6 @@ moltbot-hardened --guardian-plist ~/dev/guardian.plist start_guardian
 export MBH_STATE_FILE=/tmp/test-state.json
 export MBH_GUARDIAN_LOG=/tmp/test-guardian.log
 moltbot-hardened status
-moltbot-hardened logs
 ```
 
 ---
@@ -332,28 +229,25 @@ moltbot-hardened logs
    moltbot-hardened open
    ```
 
-### Start Guardian for First Time
+### Start Guardian (manual)
 
 ```bash
-# Install Guardian daemon
-sudo cp guardian/launchd/io.moltbot.hardened.guardian.plist /Library/LaunchDaemons/
-
-# Start via CLI
-moltbot-hardened start_guardian
-
-# Verify running
-moltbot-hardened status
+sudo ./scripts/install-guardian.sh
+sudo launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
 launchctl list | grep io.moltbot.hardened.guardian
 ```
 
-### Emergency Stop Guardian
+### Guardian control (start/stop/status)
 
 ```bash
-# Stop Guardian immediately
-moltbot-hardened stop_guardian
+# status
+launchctl list | grep io.moltbot.hardened.guardian
 
-# Manually close circuit (now Guardian won't override)
-moltbot-hardened open
+# stop
+sudo launchctl unload /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
+
+# start
+sudo launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
 ```
 
 ---

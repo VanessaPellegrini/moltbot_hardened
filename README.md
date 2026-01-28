@@ -125,6 +125,7 @@ cat PHASE1.md
 - [Circuit Breaker](./circuit-breaker/README.md) - How the breaker works
 - [Guardian](./guardian/README.md) - What the guardian monitors
 - [Operations](./ops/recovery.md) - Safe recovery procedures
+- [Edge Cases](./ops/edge-cases.md) - Failure modes and recovery
 - [CLI](./CLI.md) - Command-line usage
 - [KANBAN](./KANBAN.md) - Phase 1 progress
 

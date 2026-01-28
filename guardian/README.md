@@ -67,8 +67,8 @@ This sets state to **OPEN**, and Nginx is reloaded by the CLI.
 ## 🚀 Install (Recommended)
 
 ```bash
-sudo ./install-cli.sh
-sudo ./install-guardian.sh
+sudo ./scripts/install-cli.sh
+sudo ./scripts/install-guardian.sh
 ```
 
 Then load the daemon:
