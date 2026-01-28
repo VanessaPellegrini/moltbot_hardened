@@ -18,7 +18,7 @@ If you discover a security vulnerability, please **do not**:
 
 **Instead, please:**
 
-1. **Email us**: security@example.com
+1. **Email us**: (to be added)
 2. **Include details**:
    - Vulnerability description
    - Steps to reproduce
@@ -102,7 +102,7 @@ We aim to minimize dependencies and keep them updated:
 
 For general security questions or discussions:
 - Open an issue with the `security` label
-- Join our community: https://example.com/community
+- Join our community: (to be added)
 
 ---
 
