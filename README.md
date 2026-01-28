@@ -1,7 +1,7 @@
 # moltbot-hardened
 
-[![Status](https://img.shields.io/badge/status-alpha-orange)](./README.md)
-[![Phase](https://img.shields.io/badge/phase-1--Circuit%20Breaker%20Manual-blue)](./PHASE1.md)
+[![Status](https://img.shields.io/badge/status-alpha-orange)](https://github.com/VanessaPellegrini/moltbot-hardened)
+[![Phase](https://img.shields.io/badge/phase-1--Circuit%20Breaker%20Manual-blue)](https://github.com/VanessaPellegrini/moltbot-hardened/blob/main/PHASE1.md)
 
 **Security-first reference architecture for running Moltbot safely on macOS.**
 
@@ -28,6 +28,8 @@ the system blocks access before it becomes exploitable:
 - **Zero Trust Local:** Localhost ≠ secure
 - **Bulkhead Isolation:** Compartmentalize control plane, runtime, and host
 - **External Guardian Process:** Independent exposure monitoring
+
+## Core Principles
 
 ## Core Principles
 

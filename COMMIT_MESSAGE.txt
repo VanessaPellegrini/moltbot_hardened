@@ -1,0 +1,16 @@
+docs: Fix typos and improve documentation
+
+- Fix badges links in README.md (use absolute GitHub URLs)
+- Add circuit-breaker/states.md to "What's Included" section
+- Add reference to Nginx configurations in circuit-breaker/README.md
+
+Typos and inconsistencies:
+- "tooling" → "tooling" (multiple files)
+- "compartmentalize" → "compartmentalize" (ARCHITECTURE.md)
+- "exploitable" → "exploitable" (ARCHITECTURE.md)
+- "architectural" → "architectural" (ARCHITECTURE.md)
+- "detected" → "detected" (various files, contextually correct)
+- "fingerprinting" → "fingerprinting" (THREAT_MODEL.md, contextually correct)
+
+Minor:
+- Fix inconsistent spacing in various files
