@@ -33,9 +33,9 @@ sudo mkdir -p /usr/local/var/moltbot-hardened/state
 sudo mkdir -p /usr/local/var/log/nginx
 
 # Fix ownership
-sudo chown -R $(whoami):staff /usr/local/etc/nginx/
-sudo chown -R $(whoami):staff /usr/local/var/moltbot-hardened/
-sudo chown -R $(whoami):staff /usr/local/var/log/nginx/
+sudo chown -R $USER:staff /usr/local/etc/nginx/
+sudo chown -R $USER:staff /usr/local/var/moltbot-hardened/
+sudo chown -R $USER:staff /usr/local/var/log/nginx/
 ```
 
 ---
@@ -70,7 +70,7 @@ NG
 
 ```bash
 sudo tee /usr/local/etc/nginx/nginx.conf > /dev/null <<'NG'
-user $(whoami) staff;
+user $USER staff;
 worker_processes auto;
 error_log /usr/local/var/log/nginx/error.log info;
 pid /usr/local/var/run/nginx.pid;
@@ -268,7 +268,7 @@ tail -20 /usr/local/var/log/nginx/error.log
 
 ```bash
 # Fix state directory permissions
-sudo chown -R $(whoami):staff /usr/local/var/moltbot-hardened/state/
+sudo chown -R $USER:staff /usr/local/var/moltbot-hardened/state/
 ```
 
 ### Auth not working

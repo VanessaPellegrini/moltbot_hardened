@@ -13,7 +13,6 @@ LAUNCHD_PLIST="io.moltbot.hardened.guardian.plist"
 LAUNCHD_DEST="/Library/LaunchDaemons/$LAUNCHD_PLIST"
 LOG_DIR="/usr/local/var/log/moltbot-hardened"
 INSTALL_DIR="/usr/local/lib/moltbot-hardened"
-BIN_PATH="/usr/local/bin/moltbot-hardened-guardian"
 
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}Error: This script must be run with sudo${NC}"
@@ -22,20 +21,14 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo -e "${GREEN}=========================================${NC}"
- echo -e "${GREEN}  Moltbot Hardened - Guardian Install${NC}"
- echo -e "${GREEN}=========================================${NC}"
- echo ""
+echo -e "${GREEN}  Moltbot Hardened - Guardian Install${NC}"
+echo -e "${GREEN}=========================================${NC}"
+echo ""
 
 echo -e "${YELLOW}Step 1: Installing guardian...${NC}"
 mkdir -p "$INSTALL_DIR"
 cp "$SCRIPT_DIR/guardian/guardian.py" "$INSTALL_DIR/guardian.py"
 chmod +x "$INSTALL_DIR/guardian.py"
-
-cat > "$BIN_PATH" <<'SH'
-#!/bin/bash
-exec /Library/Developer/CommandLineTools/usr/bin/python3 /usr/local/lib/moltbot-hardened/guardian.py "$@"
-SH
-chmod +x "$BIN_PATH"
 
 echo -e "${GREEN}✓${NC} guardian installed to $INSTALL_DIR"
 
@@ -57,5 +50,5 @@ launchctl load "$LAUNCHD_DEST"
 echo -e "${GREEN}✓${NC} guardian loaded"
 
 echo ""
- echo -e "${GREEN}Done.${NC}"
- echo "Logs: $LOG_DIR/guardian.log"
+echo -e "${GREEN}Done.${NC}"
+echo "Logs: $LOG_DIR/guardian.log"

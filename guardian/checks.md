@@ -2,413 +2,73 @@
 
 ## Overview
 
-The Guardian performs a series of security checks every 30-60 seconds to detect misconfigurations that could expose Moltbot.
-
-**Principle:** If anything looks risky, the Circuit Breaker is opened immediately.
-
----
-
-## Check 1: Public Port Exposure
-
-### What it checks
-
-Scans for services listening on public interfaces (`0.0.0.0`, `::`).
-
-### Why it matters
-
-Binding to `0.0.0.0` instead of `127.0.0.1` exposes the service to the entire network/internet.
-
-### How it works
-
-**Commands:**
-```bash
-# Check IPv4
-lsof -i :8080 -nP | grep LISTEN | awk '{print $5}'
-
-# Check IPv6
-lsof -i :8080 -nP | grep LISTEN | awk '{print $5}'
-
-# Alternative with netstat
-netstat -an | grep :8080 | grep LISTEN
-```
-
-**Logic:**
-```bash
-if bind_address == "0.0.0.0" || bind_address == "::"; then
-    return RISK_DETECTED
-fi
-```
-
-### Response to risk detected
-
-**State:** OPEN
-**Reason:** PUBLIC_PORT_DETECTED
-**Details:** Port number, bind address, process name
-
-**Example:**
-```json
-{
-  "state": "OPEN",
-  "reason": "PUBLIC_PORT_DETECTED",
-  "details": {
-    "port": 8080,
-    "bind_address": "0.0.0.0",
-    "process": "nginx"
-  }
-}
-```
+The Guardian runs every 30s (default) and applies **fail‑closed** logic:
+if any check signals risk, the circuit is opened immediately.
 
 ---
 
-## Check 2: Missing Authentication
+## Implemented Checks (Phase 2)
 
-### What it checks
+### 1) Public bind on breaker port
 
-Verifies that authentication file exists and is not empty.
+**Detects:** `0.0.0.0` or `::` listeners on the breaker port.
 
-### Why it matters
+**Why:** Binding to public interfaces exposes the control plane.
 
-Without authentication, anyone who can access the control plane has full access.
+**Implementation:** `lsof -nP -iTCP:<port> -sTCP:LISTEN` with address parsing.
 
-### How it works
-
-**Command:**
-```bash
-# Check if auth file exists
-[ -f /usr/local/etc/nginx/.htpasswd ] && return FILE_EXISTS
-
-# Check if file is not empty
-[ -s /usr/local/etc/nginx/.htpasswd ] && return FILE_NOT_EMPTY
-```
-
-**Logic:**
-```bash
-if [ ! -f /usr/local/etc/nginx/.htpasswd ]; then
-    return RISK_DETECTED
-fi
-
-if [ ! -s /usr/local/etc/nginx/.htpasswd ]; then
-    return RISK_DETECTED
-fi
-```
-
-### Response to risk detected
-
-**State:** OPEN
-**Reason:** AUTH_MISSING
-**Details:** Auth file path, file size
-
-**Example:**
-```json
-{
-  "state": "OPEN",
-  "reason": "AUTH_MISSING",
-  "details": {
-    "auth_file": "/usr/local/etc/nginx/.htpasswd",
-    "file_size": 0
-  }
-}
-```
+**Action:** OPEN with reason `EXPOSURE_DETECTED`.
 
 ---
 
-## Check 3: Docker Published Ports
+### 2) Missing or empty auth file
 
-### What it checks
+**Detects:** `/usr/local/etc/nginx/.htpasswd` missing or empty.
 
-Scans Docker containers to ensure they're not publishing ports to all interfaces.
+**Why:** Without auth, any access to the breaker is unsafe.
 
-### Why it matters
+**Implementation:** file existence and non‑zero size checks.
 
-Docker's `-p 8080:8080` binds to `0.0.0.0` by default, exposing the service publicly.
-
-### How it works
-
-**Command:**
-```bash
-# List containers with published ports
-docker ps --format "{{.Ports}}" | grep "0.0.0.0"
-
-# Or use docker inspect
-docker inspect $(docker ps -q) | jq -r '.[].NetworkSettings.Ports[]? | select(.PublishIp) | "\(.PublishIp):\(.PublicPort) -> \(.PrivatePort)"'
-```
-
-**Logic:**
-```bash
-if published_ip == "0.0.0.0" || published_ip == "::"; then
-    return RISK_DETECTED
-fi
-```
-
-### Response to risk detected
-
-**State:** OPEN
-**Reason:** DOCKER_PUBLIC_PORT
-**Details:** Container name, port mapping
-
-**Example:**
-```json
-{
-  "state": "OPEN",
-  "reason": "DOCKER_PUBLIC_PORT",
-  "details": {
-    "container": "moltbot-control",
-    "port_mapping": "0.0.0.0:8080 -> 8080/tcp"
-  }
-}
-```
+**Action:** OPEN with reason `EXPOSURE_DETECTED`.
 
 ---
 
-## Check 4: HTML Fingerprinting (Future)
+### 3) Unauthenticated access to breaker
 
-### What it will check
+**Detects:** `GET /` to `127.0.0.1:<breaker_port>` returns a status that is **not** 401/403/503.
 
-Scan for Moltbot control pages accessible from public internet.
+**Why:** Any “success” response without auth implies exposure.
 
-### Why it matters
+**Implementation:** HTTP request to localhost and status check.
 
-Even if port is bound correctly, Shodan or similar services can index and fingerprint the service.
-
-### How it will work (future)
-
-**Commands:**
-```bash
-# HTTP request to localhost
-curl -s http://127.0.0.1:8080/ | grep -i "moltbot"
-
-# Or check for specific indicators
-curl -s http://127.0.0.1:8080/ | head -20 | grep -i "control\|admin\|dashboard"
-```
-
-**Logic:**
-```bash
-if html_content =~ "Moltbot Control" && not_authenticated; then
-    return RISK_DETECTED
-fi
-```
-
-### Response to risk detected (future)
-
-**State:** OPEN
-**Reason:** FINGERPRINT_DETECTED
-**Details:** URL, fingerprint match
-
-**Example:**
-```json
-{
-  "state": "OPEN",
-  "reason": "FINGERPRINT_DETECTED",
-  "details": {
-    "url": "http://127.0.0.1:8080/",
-    "fingerprint": "Moltbot Control Panel v1.0"
-  }
-}
-```
+**Action:** OPEN with reason `EXPOSURE_DETECTED`.
 
 ---
 
-## Check 5: Nginx Configuration Validation
+## Planned Checks (Future)
 
-### What it checks
+These are intentionally **not implemented yet**. They remain documented as the roadmap.
 
-Verifies that Nginx configuration is syntactically valid.
-
-### Why it matters
-
-Invalid Nginx configuration can cause Nginx to fail or load a default (potentially insecure) config.
-
-### How it works
-
-**Command:**
-```bash
-# Test Nginx configuration
-nginx -t -c /usr/local/etc/nginx/nginx.conf
-```
-
-**Logic:**
-```bash
-if nginx -t returns error; then
-    # Check if active state file is the fallback (potentially unsafe)
-    if state_file == "fallback.conf"; then
-        return RISK_DETECTED
-    fi
-fi
-```
-
-### Response to risk detected
-
-**State:** OPEN
-**Reason:** NGINX_CONFIG_INVALID
-**Details:** Error message
-
-**Example:**
-```json
-{
-  "state": "OPEN",
-  "reason": "NGINX_CONFIG_INVALID",
-  "details": {
-    "error": "nginx: [emerg] invalid number of arguments in \"auth_basic\" directive"
-  }
-}
-```
+- Docker published ports (detect `0.0.0.0` bindings from `docker ps` / `inspect`)
+- Nginx configuration validation (`nginx -t`)
+- HTML fingerprinting for Moltbot control pages
+- Firewall-aware allowlist logic
 
 ---
 
-## Check Execution Flow
+## Execution Flow
 
-### Main Loop
-
-```bash
-while true; do
-    # Run all checks
-    for check in all_checks; do
-        result = run_check(check)
-
-        if result == RISK_DETECTED; then
-            # Log risk
-            log_risk(check, result)
-
-            # Update state file
-            update_state(OPEN, check.reason)
-
-            # Exit immediately (don't run more checks)
-            exit 0
-        fi
-    done
-
-    # Log: No risks found
-    log_ok("All checks passed")
-
-    # Wait before next check
-    sleep 30
-done
-```
-
-### Priority Order
-
-Checks run in this order (first risk detected stops further checks):
-
-1. **Public Port Exposure** (highest priority)
-2. **Missing Authentication**
-3. **Docker Published Ports**
-4. **Nginx Configuration Validation**
-5. **HTML Fingerprinting** (future, lower priority)
+- Runs checks in order
+- First risk detected stops evaluation and opens the circuit
+- Logs decision to `/usr/local/var/log/moltbot-hardened/guardian.log`
 
 ---
 
-## False Positives and Tuning
+## Notes
 
-### What is a false positive?
-
-A false positive is when the Guardian detects a risk that isn't actually risky.
-
-**Examples:**
-- Binding to `0.0.0.0` but firewall blocks it
-- Auth file exists but auth is disabled in Nginx config
-- Container publishes port but host firewall blocks it
-
-### How to avoid false positives
-
-**Current approach:** Fail-closed
-- Better to have a false positive (safe but inconvenient) than a false negative (exposed but undetected)
-
-**Future tuning (Phase 2+):**
-- Add firewall awareness (check if firewall blocks the port)
-- Add allowlist configuration (known safe bindings)
-- Add context awareness (user is actively debugging)
+- The Guardian does **not** auto-close the circuit.
+- Recovery remains manual via `moltbot-hardened recovery` and `open`.
 
 ---
 
-## Performance Considerations
-
-### Impact on system
-
-Each check takes:
-- Port scan: ~50-100ms
-- File checks: ~5-10ms
-- Docker inspection: ~100-200ms
-- Nginx test: ~20-50ms
-
-**Total per cycle:** ~200-400ms
-
-**At 30s intervals:** Negligible system impact
-
-### Optimization ideas
-
-**Cache results:**
-```bash
-if port_state == cached_port_state; then
-    # Skip this check if nothing changed
-    continue
-fi
-```
-
-**Parallel checks:**
-```bash
-# Run checks in parallel
-check_1 &
-check_2 &
-check_3 &
-wait
-```
-
----
-
-## Testing Checks
-
-### Test: Public Port Detection
-
-**Setup:**
-```bash
-# Intentionally bind to 0.0.0.0
-echo "listen 0.0.0.0:8080;" >> /usr/local/etc/nginx/servers/moltbot-control.conf
-nginx -s reload
-```
-
-**Run Guardian check:**
-```bash
-moltbot-hardened-guardian --check
-
-# Expected: State file shows OPEN, PUBLIC_PORT_DETECTED
-```
-
-**Cleanup:**
-```bash
-# Restore to 127.0.0.1
-echo "listen 127.0.0.1:8080;" > /usr/local/etc/nginx/servers/moltbot-control.conf
-nginx -s reload
-```
-
-### Test: Missing Auth
-
-**Setup:**
-```bash
-# Remove auth file
-rm /usr/local/etc/nginx/.htpasswd
-```
-
-**Run Guardian check:**
-```bash
-moltbot-hardened-guardian --check
-
-# Expected: State file shows OPEN, AUTH_MISSING
-```
-
-**Cleanup:**
-```bash
-# Restore auth file
-htpasswd -c /usr/local/etc/nginx/.htpasswd admin
-```
-
----
-
-## Next Steps
-
-See [guardian/README.md](./README.md) for Guardian daemon documentation.
-
-See [THREAT_MODEL.md](../THREAT_MODEL.md) for how these checks mitigate threats.
-
----
-
-*Last updated: 27 January 2026*
+*Last updated: 28 January 2026*

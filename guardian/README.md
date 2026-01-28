@@ -1,399 +1,119 @@
 # Guardian Daemon (Phase 2)
 
-## 🎯 Guardian Overview
+## 🎯 Overview
 
-The Guardian is a **macOS launchd-managed Python daemon** that monitors for security risks and automatically opens the Circuit Breaker when exposure is detected.
+The Guardian is a **macOS launchd-managed Python daemon** that monitors exposure risks and **opens the Circuit Breaker** when risk is detected.
 
-**Status:** Implemented in Phase 2
+**Status:** Implemented (Phase 2)
 
 ---
 
-## 🏗️ Architecture
+## ✅ What the Guardian Observes
+
+The Guardian runs on an interval (default: 30s) and checks:
+
+1. **Public bind on breaker port**
+   - Detects `0.0.0.0` / `::` listeners via `lsof`.
+
+2. **Missing or empty auth file**
+   - Checks `/usr/local/etc/nginx/.htpasswd` exists and is not empty.
+
+3. **Unauthenticated access**
+   - Sends `GET /` to `127.0.0.1:<breaker_port>`.
+   - If response is not `401/403/503`, it flags exposure.
+
+---
+
+## ✅ What the Guardian Decides
+
+If **any** exposure signal is detected, Guardian does:
 
 ```
-┌─────────────────────────────────┐
-│         macOS Host                         │
-│                                     │
-│  ┌──────────────┐                  │
-│  │  Guardian     │ (launchd)       │
-│  │  Daemon      │                  │
-│  └──────┬───────┘                  │
-│         │                            │
-│         │ Observes                  │
-│         │ Updates state                │
-│         │                             │
-│  └──────────────────────┘                  │
-│                                     │
-│  ┌──────────────┐                  │
-│  │  Circuit      │ (Nginx)        │
-│  │  Breaker      │                  │
-│  └──────┬───────┘                  │
-│         │                            │
-│         │ Updates state                 │
-│         │ Watches state file             │
-│         │                             │
-│  └──────────────────────┘                  │
-│                                     │
-└─────────────────────────────────┘
+moltbot-hardened block --reason EXPOSURE_DETECTED --actor guardian
 ```
 
-**Flow:**
-1. Guardian checks system state (every 30-60s)
-2. If risk detected → updates state file to OPEN
-3. Nginx (configured to watch state file) reloads and blocks access
-4. User notified (future: desktop notifications)
+This sets state to **OPEN**, and Nginx is reloaded by the CLI.
 
 ---
 
-## 📦 Implementation Details
+## 🧩 Files
 
-### Guardian Daemon (Python)
-
-**File:** `guardian/guardian.py`
-
-**Features:**
-- ✅ Configurable monitoring interval (default: 30s)
-- ✅ Multiple security checks (ports, auth, Docker, Nginx)
-- ✅ State file management with proper JSON encoding
-- ✅ Structured logging (DEBUG/INFO levels)
-- ✅ Environment variable support for paths
-- ✅ Atomic state updates (no partial writes)
-
-**Security Checks Implemented:**
-1. **Public Port Exposure** - Detects binding to `0.0.0.0` or `::`
-2. **Missing Authentication** - Checks auth file existence and non-empty
-3. **Docker Published Ports** - Scans for Docker containers publishing ports publicly
-4. **Nginx Configuration Validation** - Validates main nginx.conf syntax
-
-**State Management:**
-- Source of truth: `/usr/local/var/moltbot-hardened/state/breaker-state.json`
-- States: CLOSED, OPEN, HALF (aliases for HALF-OPEN)
-- Updates include: state, reason, detected_at (UTC), actor
-
-**Logging:**
-- Log file: `/usr/local/var/log/moltbot-hardened/guardian.log`
-- Error log: `/usr/local/var/log/moltbot-hardened/guardian-error.log`
-- Format: ISO 8601 timestamps with level and message
-- Rotation: Future (logrotate)
+- Daemon: `guardian/guardian.py`
+- Wrapper (local): `bin/moltbot-hardened-guardian`
+- launchd plist: `guardian/launchd/io.moltbot.hardened.guardian.plist`
 
 ---
 
-### CLI Wrapper (Bash)
+## ⚙️ Configuration (Environment Variables)
 
-**File:** `bin/moltbot-hardened`
-
-**Commands:**
-- `status` - Read and display current breaker state
-- `block` - Manually open circuit (set to OPEN)
-- `recovery` - Request half-open state (verification mode)
-- `open` - Manually close circuit (set to CLOSED)
-- `verify` - Run all verification checks
-- `start_guardian` - Start Guardian daemon via launchd
-- `stop_guardian` - Stop Guardian daemon
-- `logs` - Show Guardian logs (last 20 lines)
-- `status_including_state` - Include state file in status output
-
-**Features:**
-- ✅ Colored output (GREEN for success, RED for errors, YELLOW for warnings)
-- ✅ JSON pretty-printing with python3 -m json.tool
-- ✅ Comprehensive verification checks
-- ✅ Status display with Guardian log preview
-- ✅ Proper error handling for all commands
+- `MBH_GUARDIAN_INTERVAL` (seconds)
+- `MBH_GUARDIAN_LOG`
+- `MBH_CLI` (default: `/usr/local/bin/moltbot-hardened`)
+- `MBH_AUTH_FILE`
+- `MBH_BREAKER_PORT`
+- `MBH_CONTROL_PORT`
+- `MBH_STATE_FILE`
 
 ---
 
-### Launchd Integration
+## 📄 Logging
 
-**File:** `guardian/launchd/io.moltbot.hardened.guardian.plist`
-
-**Configuration:**
-- Program: `/usr/local/bin/moltbot-hardened-guardian`
-- Arguments: `--interval 30` (configurable)
-- RunAtLoad: true (starts on login/boot)
-- KeepAlive: true (restarts if it crashes)
-- StandardOutPath: `/usr/local/var/log/moltbot-hardened/guardian.stdout.log`
-- StandardErrorPath: `/usr/local/var/log/moltbot-hardened/guardian.stderr.log`
-- ThrottleInterval: 10 (prevent rapid restarts)
-
-**Environment Variables (via plist):**
-- `MBH_GUARDIAN_LOG` - Guardian log file location
-- `MBH_STATE_FILE` - Circuit Breaker state file
-- `MBH_NGINX_DIR` - Nginx configuration directory
-- `MBH_AUTH_FILE` - Auth file location
-- `MBH_CONTROL_PORT` - Circuit Breaker control port
-- `MBH_BREAKER_PORT` - Circuit Breaker breaker port
-- `MBH_GUARDIAN_INTERVAL` - Monitoring interval (seconds)
-- `MBH_CLI` - CLI command path (default `/usr/local/bin/moltbot-hardened`)
+- Main log: `/usr/local/var/log/moltbot-hardened/guardian.log`
+- stderr log: `/usr/local/var/log/moltbot-hardened/guardian.stderr.log`
+- stdout log: `/usr/local/var/log/moltbot-hardened/guardian.stdout.log`
 
 ---
 
-## 🔄 State Transitions
-
-### Guardian-Initiated Transitions
-
-**Guardian Risk Detected → OPEN**
-- Guardian writes state file with `state="OPEN"`
-- Includes: reason, detected_at, actor="guardian"
-- Nginx auto-reloads (watching state file)
-- User sees 403 Forbidden page
-
-**Guardian Validates → HALF**
-- Guardian writes state file with `state="HALF"`
-- Only for recovery after manual fix
-- Nginx serves 503 for normal requests, allows /health from 127.0.0.1
-
-### User-Initiated Transitions
-
-**User Manual Block → OPEN**
-- CLI writes state file with `state="OPEN"`
-- Includes: reason, detected_at, actor="user"
-- Nginx auto-reloads
-
-**User Recovery Request → HALF**
-- CLI writes state file with `state="HALF"`
-- Guardian will validate and potentially open again
-
-**User Open Request → CLOSED**
-- CLI writes state file with `state="CLOSED"`
-- Guardian accepts this (no longer monitoring for risk)
-- Nginx serves normal requests
-
----
-
-## 🧪 Guardian Checks
-
-See [guardian/checks.md](./checks.md) for detailed documentation of all checks.
-
-**Summary:**
-
-| Check | Detects | Opens Circuit | Priority |
-|--------|----------|----------------|----------|
-| Public port binding | ✅ | ✅ | 1 (CRITICAL) |
-| Missing auth | ✅ | ✅ | 2 (HIGH) |
-| Docker public ports | ✅ | ✅ | 3 (HIGH) |
-| Nginx config invalid | ✅ | ✅ | 4 (MEDIUM) |
-| HTML fingerprinting | ⚠️ | ❌ (Future) | 5 (LOW) |
-
----
-
-## 🔒 Security Considerations
-
-### What Guardian Protects
-
-✅ Automatic detection of public exposure
-✅ Automatic response to misconfiguration
-✅ Runs independently of Moltbot code
-✅ Survives Moltbot crashes (launchd KeepAlive)
-✅ Comprehensive logging for audit trail
-✅ User can override Guardian with manual commands
-
-### What Guardian Doesn't Protect
-
-❌ Local attackers (same machine)
-❌ User intentionally disabling Guardian
-❌ Code-level vulnerabilities in Moltbot
-❌ Physical access to device
-
----
-
-## 🚀 Deployment
-
-### Installing Guardian
+## 🚀 Install (Recommended)
 
 ```bash
-# 1. Install Guardian daemon and CLI
-chmod +x $PWD/guardian/guardian.py
-sudo ln -sf $PWD/guardian/guardian.py \
-         /usr/local/lib/moltbot-hardened/guardian.py
-
-chmod +x $PWD/bin/moltbot-hardened
-sudo ln -sf $PWD/bin/moltbot-hardened \
-         /usr/local/bin/moltbot-hardened
-
-# 2. Install launchd plist
-sudo cp $PWD/guardian/launchd/io.moltbot.hardened.guardian.plist \
-       /Library/LaunchDaemons/
-
-# 3. Load and start Guardian
-launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-launchctl start io.moltbot.hardened.guardian
-
-# 4. Verify running
-launchctl list | grep io.moltbot.hardened.guardian
-
-# 5. Check logs
-tail -f /usr/local/var/log/moltbot-hardened/guardian.log
+sudo ./install-cli.sh
+sudo ./install-guardian.sh
 ```
 
-### Uninstalling Guardian
+Then load the daemon:
 
 ```bash
-# Stop and unload
-launchctl stop io.moltbot.hardened.guardian
-launchctl unload /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-
-# Remove plist
-rm /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-
-# Remove binaries
-sudo rm /usr/local/bin/moltbot-hardened-guardian
-sudo rm /usr/local/bin/moltbot-hardened
+sudo launchctl unload /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
+sudo launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
 ```
 
 ---
 
-## 📊 Observability
+## 🔧 Run Once (Debug)
 
-### Guardian Logs
-
-**Location:** `/usr/local/var/log/moltbot-hardened/guardian.log`
-
-**Format:**
-```
-[2026-01-27T20:00:00Z] INFO guardian started
-[2026-01-27T20:00:30Z] INFO check cycle started
-[2026-01-27T20:00:31Z] INFO public port detected: 0.0.0.0:8080
-[2026-01-27T20:00:32Z] INFO opening circuit
-[2026-01-27T20:00:32Z] INFO state saved: OPEN
-[2026-01-27T20:00:35Z] INFO check cycle complete
-```
-
-### Guardian Error Logs
-
-**Location:** `/usr/local/var/log/moltbot-hardened/guardian-error.log`
-
-**What to look for:**
-- Permission denied errors
-- File system errors
-- State file write failures
-- Nginx communication errors
-
----
-
-## 🔧 Troubleshooting
-
-### Guardian Won't Start
-
-**Problem:** `launchctl list` doesn't show Guardian.
-
-**Solution:**
 ```bash
-# Check if plist exists
-ls -la /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-
-# Check if loaded
-launchctl list | grep io.moltbot.hardened.guardian
-
-# Check logs for errors
-tail -20 /usr/local/var/log/moltbot-hardened/guardian-error.log
-
-# Reload (if needed)
-launchctl unload /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-launchctl load /Library/LaunchDaemons/io.moltbot.hardened.guardian.plist
-launchctl start io.moltbot.hardened.guardian
-```
-
-### Guardian Keeps Crashing
-
-**Problem:** Guardian dies repeatedly (KeepAlive restarts it).
-
-**Solution:**
-```bash
-# Check error logs
-tail -20 /usr/local/var/log/moltbot-hardened/guardian-error.log
-
-# Common causes:
-# 1. Python not found - fix path in plist
-# 2. Permission denied - check file access
-# 3. Import errors - check dependencies (http.client)
-# 4. JSON errors - validate state file format
-```
-
-### Guardian Not Updating State
-
-**Problem:** Guardian runs but state file doesn't update.
-
-**Solution:**
-```bash
-# Check directory permissions
-ls -la /usr/local/var/moltbot-hardened/state/
-
-# Fix permissions (if needed)
-sudo chown -R $(whoami):$(whoami) /usr/local/var/moltbot-hardened/state/
-
-# Test write manually
-echo '{"test": true}' | sudo tee /usr/local/var/moltbot-hardened/state/breaker-state.json
+bin/moltbot-hardened-guardian --once --verbose
 ```
 
 ---
 
-## 🔗 Integration with Circuit Breaker
+## ✅ Manual Verification Steps
 
-### Guardian → Nginx Communication
+1. **Missing auth file**
+   - Remove or empty `/usr/local/etc/nginx/.htpasswd`
+   - Guardian should open the breaker
 
-**How it works:**
-1. Guardian updates `/usr/local/var/moltbot-hardened/state/breaker-state.json`
-2. Nginx watches state file (via inotify in future, polling now)
-3. When state changes, Nginx reloads configuration
-4. Nginx serves appropriate response based on state
+2. **Public bind**
+   - Temporarily bind breaker to `0.0.0.0:8080`
+   - Guardian should open the breaker
 
-**State File as API:**
-- Guardian writes state (acts as producer)
-- Nginx reads state (acts as consumer)
-- State file is single source of truth
-
-### Nginx Auto-Reload (Future)
-
-**Current:** Polling (check every N seconds)
-
-**Future:** Inotify-based instant reload
-- Nginx detects file system changes
-- Near-instant response to state changes
-- Lower system overhead than polling
+3. **Unauthenticated access**
+   - Disable auth in CLOSED config
+   - Guardian should open the breaker
 
 ---
 
-## 🚀 Future Enhancements (Phase 3+)
+## 🔒 What Guardian Does NOT Do
 
-### Planned Features
-
-1. **Desktop Notifications**
-   - macOS notification center integration
-   - Tray icon for status display
-   - Clickable notifications for actions
-
-2. **Advanced Scanning**
-   - Shodan-like external scanning
-   - Content analysis in responses
-   - Anomaly detection in logs
-
-3. **Automated Recovery**
-   - Guardian validates configuration
-   - Automatically moves to HALF-OPEN after fix
-   - Auto-closes after verification passes
-
-4. **Secret Management**
-   - Integration with Vault or Akeyless
-   - Secret rotation on detection
-   - Secret injection prevention
-
-5. **Docker Support**
-   - Containerized deployment
-   - Docker-aware security checks
-   - Docker network isolation
+- Does not auto-close the breaker
+- Does not fix configuration automatically
+- Does not provide alerts beyond logs
 
 ---
 
-## 📚 References
+## 🔗 Related Docs
 
-See [guardian/checks.md](./checks.md) for detailed check documentation.
-
-See [PHASE1.md](../PHASE1.md) for Circuit Breaker implementation.
-
-See [circuit-breaker/README.md](../circuit-breaker/README.md) for how Circuit Breaker works.
-
-See [ops/recovery.md](../ops/recovery.md) for recovery procedures.
-
----
-
-*Last updated: 27 January 2026*
+- `PHASE2.md`
+- `INSTALL.md`
+- `CLI.md`
