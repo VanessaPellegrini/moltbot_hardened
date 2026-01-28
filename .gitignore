@@ -38,3 +38,6 @@ coverage/
 
 # Local testing artifacts
 testing/
+
+# Tooling outputs
+final_analysis
